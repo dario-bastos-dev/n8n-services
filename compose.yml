@@ -1,0 +1,73 @@
+services:
+  caddy:
+    image: caddy:2.7-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - n8n-services
+    mem_limit: 128m
+    mem_reservation: 64m
+
+  grafana:
+    image: grafana/grafana:12.0.1
+    container_name: grafana
+    environment:
+      - GF_SERVER_ROOT_URL=https://${URL_SUBDOMAIN}/grafana
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,redis-datasource
+    networks:
+      - n8n-services
+    volumes:
+      - grafana_data:/var/lib/grafana
+    mem_limit: 512m
+    mem_reservation: 256m
+
+  waha:
+    image: devlikeapro/waha:latest
+    container_name: waha
+    environment:
+      - WHATSAPP_DEFAULT_ENGINE=GOWS
+      - WHATSAPP_API_KEY=${WAHA_API_KEY}
+      - WHATSAPP_API_HOSTNAME=${URL_SUBDOMAIN}
+      - WHATSAPP_SESSIONS_ENABLED=true
+      - WHATSAPP_RESTART_ALL_SESSIONS=true
+      - WHATSAPP_SWAGGER_ENABLED=true
+      - WHATSAPP_SWAGGER_USERNAME=${WAHA_SWAGGER_USERNAME}
+      - WHATSAPP_SWAGGER_PASSWORD=${WAHA_SWAGGER_PASSWORD}
+    networks:
+      - n8n-services
+    volumes:
+      - waha_data:/app/.sessions
+    mem_limit: 512m
+    mem_reservation: 256m
+
+  redis-stack:
+    image: redis/redis-stack:latest
+    container_name: redis-stack
+    command: --requirepass ${REDIS_PASSWORD}
+    networks:
+      - n8n-services
+    volumes:
+      - redis_data:/data
+    mem_limit: 1g
+    mem_reservation: 512m
+
+volumes:
+  grafana_data:
+    external: true
+  waha_data:
+  redis_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  n8n-services:
+    external: true
