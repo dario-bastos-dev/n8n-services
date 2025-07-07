@@ -26,7 +26,26 @@ services:
     networks:
       - n8n-services
     volumes:
-      - ./data/grafana:/var/lib/grafana
+      - grafana_data:/var/lib/grafana
+    mem_limit: 512m
+    mem_reservation: 256m
+
+  prometheus:
+    image: prom/prometheus:v3.4.1
+    container_name: prometheus
+    restart: unless-stopped
+    networks:
+      - n8n-services
+    volumes:
+      - prometheus_data:/prometheus
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
     mem_limit: 512m
     mem_reservation: 256m
 
@@ -83,6 +102,8 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+  grafana_data:
+  prometheus_data:
 
 networks:
   n8n-services:

@@ -18,6 +18,20 @@ grafana.services.subdomínio.com {
         reverse_proxy grafana:3000
 }
 
+prometheus.services.subdomínio.com {
+    reverse_proxy prometheus:9090
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer-when-downgrade"
+        X-XSS-Protection "1; mode=block"
+    }
+
+    encode gzip zstd
+}
+
 redis.services.subdomínio.com {
     encode gzip zstd
 
