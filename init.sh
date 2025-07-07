@@ -10,7 +10,8 @@ echo "==================================="
 # Create necessary directories
 echo "Creating data directories..."
 mkdir -p ./data/grafana
-mkdir -p ./data/waha
+mkdir -p ./data/waha/sessions
+mkdir -p ./data/waha/media
 mkdir -p ./data/redis
 
 # Start services

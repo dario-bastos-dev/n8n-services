@@ -1,17 +1,30 @@
-n8n.subdomínio.com {
-    # HTTPS automático! Nada para configurar!
+waha.services.subdomínio.com {
     
-    handle_path /grafana* {
+    reverse_proxy waha:3000
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer-when-downgrade"
+        X-XSS-Protection "1; mode=block"
+    }
+
+    encode gzip zstd
+
+}
+
+grafana.services.subdomínio.com {
         reverse_proxy grafana:3000
-    }
-    
-    handle_path /whatsapp* {
-        reverse_proxy waha:3000 {
-            header_up X-Forwarded-Prefix /whatsapp
-        }
-    }
-    
-    handle_path /redis* {
-        reverse_proxy redis-stack:8001
+}
+
+redis.services.subdomínio.com {
+    encode gzip zstd
+
+    reverse_proxy redis:8001 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_ip}
+        header_up X-Forwarded-For {remote_ip}
+        header_up X-Forwarded-Proto {scheme}
     }
 }

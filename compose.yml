@@ -4,8 +4,8 @@ services:
     container_name: caddy
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -19,55 +19,71 @@ services:
     image: grafana/grafana:12.0.1
     container_name: grafana
     environment:
-      - GF_SERVER_ROOT_URL=https://${URL_SUBDOMAIN}/grafana
+      - GF_SERVER_ROOT_URL=https://grafana.${URL_SUBDOMAIN}/grafana
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
       - GF_INSTALL_PLUGINS=grafana-clock-panel,redis-datasource
     networks:
       - n8n-services
     volumes:
-      - grafana_data:/var/lib/grafana
+      - ./data/grafana:/var/lib/grafana
     mem_limit: 512m
     mem_reservation: 256m
 
   waha:
     image: devlikeapro/waha:latest
     container_name: waha
+    ports:
+      - "3000:3000"
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '100m'
+        max-file: '10'
     environment:
+      - WHATSAPP_API_PORT=3000
       - WHATSAPP_DEFAULT_ENGINE=GOWS
-      - WHATSAPP_API_KEY=${WAHA_API_KEY}
-      - WHATSAPP_API_HOSTNAME=${URL_SUBDOMAIN}
-      - WHATSAPP_SESSIONS_ENABLED=true
-      - WHATSAPP_RESTART_ALL_SESSIONS=true
+      - WHATSAPP_DASHBOARD_ENABLED=true
+      - WAHA_DASHBOARD_USERNAME=${WAHA_USERNAME}
+      - WAHA_DASHBOARD_PASSWORD=${WAHA_PASSWORD}
       - WHATSAPP_SWAGGER_ENABLED=true
-      - WHATSAPP_SWAGGER_USERNAME=${WAHA_SWAGGER_USERNAME}
-      - WHATSAPP_SWAGGER_PASSWORD=${WAHA_SWAGGER_PASSWORD}
+      - WHATSAPP_SWAGGER_USERNAME=${WAHA_USERNAME}
+      - WHATSAPP_SWAGGER_PASSWORD=${WAHA_PASSWORD}
+      - WAHA_PRINT_QR=False
+      - WHATSAPP_HOOK_URL=https://waha.${URL_SUBDOMAIN}/whats/webhook
+      - WHATSAPP_HOOK_EVENTS=session.status,message,message.reaction
+      - TZ=America/Sao_Paulo
     networks:
       - n8n-services
     volumes:
-      - waha_data:/app/.sessions
+      - ./data/waha/sessions:/app/.sessions
+      - ./data/waha/media:/app/.media
     mem_limit: 512m
     mem_reservation: 256m
 
-  redis-stack:
+  redis:
     image: redis/redis-stack:latest
     container_name: redis-stack
-    command: --requirepass ${REDIS_PASSWORD}
+    ports:
+      - "6379:6379"
+      - "8001:8001"
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
     networks:
       - n8n-services
     volumes:
-      - redis_data:/data
+      - ./data/redis:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
     mem_limit: 1g
     mem_reservation: 512m
 
 volumes:
-  grafana_data:
-    external: true
-  waha_data:
-  redis_data:
   caddy_data:
   caddy_config:
 
 networks:
   n8n-services:
-    external: true
+    driver: bridge
