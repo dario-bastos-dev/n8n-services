@@ -147,6 +147,7 @@ seu-dominio.com {
 ```bash
 # Torna o script executável (Linux/Mac)
 chmod +x init.sh
+chmod +x restart.sh
 
 # Execute o script de inicialização
 ./init.sh
