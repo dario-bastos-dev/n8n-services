@@ -1,16 +1,14 @@
 # 🚀 Serviços n8n - Stack Docker Completo
 
-Uma stack Docker Compose completa para automação com n8n, incluindo monitoramento com Grafana, API WhatsApp com WAHA e cache Redis com interface visual, utilizando Caddy como proxy reverso.
+Uma stack Docker Compose completa para automação com n8n, incluindo monitoramento com Grafana e Prometheus, API WhatsApp com WAHA ou Evolution API e cache Redis com interface visual, utilizando Caddy como proxy reverso.
 
 ## 📋 Índice
 
 - [Visão Geral](#-visão-geral)
-- [Serviços Incluídos](#-serviços-incluídos)
 - [Pré-requisitos](#-pré-requisitos)
 - [Instalação e Configuração](#-instalação-e-configuração)
 - [Uso](#-uso)
 - [Estrutura do Projeto](#-estrutura-do-projeto)
-- [Configurações](#-configurações)
 - [Scripts Utilitários](#-scripts-utilitários)
 - [Monitoramento](#-monitoramento)
 - [Troubleshooting](#-troubleshooting)
@@ -37,29 +35,53 @@ Este projeto fornece uma stack completa de serviços Docker para automação de 
 - **Imagem**: `caddy:2.7-alpine`
 - **Portas**: 80 (HTTP), 443 (HTTPS)
 - **Características**: HTTPS automático, configuração simples
-- **Memória**: 128MB (limite), 64MB (reservado)
 
-### 2. Grafana (Monitoramento)
+### 2. Monitoramento
+
+#### 2.1 Grafana
 
 - **Imagem**: `grafana/grafana:12.0.1`
-- **Acesso**: `https://seu-dominio.com/grafana`
-- **Recursos**: Dashboards de monitoramento, plugins Redis
-- **Memória**: 512MB (limite), 256MB (reservado)
+- **Acesso**: `https://grafana.services.subdomínio.com`
+- **Recursos**: Dashboards de monitoramento
 
-### 3. WAHA (WhatsApp HTTP API)
+#### 2.2 Prometheus
+
+- **Imagem**: `prom/prometheus:v3.4.1`
+- **Acesso**: `https://prometheus.services.subdomínio.com`
+- **Recursos**: recolhimento de métricas
+
+### 4. WhatsApp
+
+#### 4.1 WAHA
 
 - **Imagem**: `devlikeapro/waha:latest`
-- **Acesso**: `https://seu-dominio.com/whatsapp`
-- **Engine**: GOWS (Google Chrome Web Store)
-- **Features**: API REST, Swagger UI, sessões persistentes
-- **Memória**: 512MB (limite), 256MB (reservado)
+- **Acesso**: `https://waha.services.seu-dominio.com`
 
-### 4. Redis Stack
+#### 4.2 Evolution API
+
+- **Imagem**: `atendai/evolution-api:v2.1.1`
+- **Acesso**: `https://evolution.services.seu-dominio.com`
+- **Requisitos**: Precisa de um redis e um postgres.
+
+### 5. Bancos de dados
+
+#### 5.1 Redis Stack
 
 - **Imagem**: `redis/redis-stack:latest`
-- **Acesso**: `https://seu-dominio.com/redis`
+- **Acesso**: `https://redis.services.subdomínio.com`
 - **Features**: Cache, banco de dados, RedisInsight UI
-- **Memória**: 1GB (limite), 512MB (reservado)
+
+#### 5.2 Redis (Evo)
+
+- **Imagem**: `redis:8-alpine`
+- **Acesso**: Sem acesso web
+- **Features**: Cache, banco de dados
+
+#### 5.3 Postgres (Evo)
+
+- **Imagem**: `postgres:17-alpine`
+- **Acesso**: Sem acesso
+- **Features**: Banco de dados
 
 ## 📋 Pré-requisitos
 
@@ -68,25 +90,13 @@ Este projeto fornece uma stack completa de serviços Docker para automação de 
 - Domínio configurado com DNS apontando para seu servidor
 - Portas 80 e 443 abertas no firewall
 
-### Criando a Rede Docker
-
-```bash
-docker network create n8n-services
-```
-
-### Criando Volumes Externos
-
-```bash
-docker volume create grafana_data
-```
-
 ## 🚀 Instalação e Configuração
 
 ### 1. Clone o Repositório
 
 ```bash
-git clone <url-do-repositorio>
-cd Serviços_n8n
+git clone https://github.com/dario-bastos-dev/n8n-services.git
+cd n8n-services
 ```
 
 ### 2. Configurar Variáveis de Ambiente
@@ -105,40 +115,48 @@ Edite o arquivo `.env` com suas configurações:
 
 ```bash
 # Domínio principal
-URL_SUBDOMAIN=seu-dominio.com
+# Subdomínio da URL principal para os serviços
+URL_SUBDOMAIN=services.subdomínio.com
 
-# Credenciais do Grafana
+# Configurações do Grafana
 GRAFANA_ADMIN_USER=admin
-GRAFANA_ADMIN_PASSWORD=SuaSenhaSegura123
+GRAFANA_ADMIN_PASSWORD=your_secure_password_here
 
-# Configurações WAHA
-WAHA_API_KEY=sua-chave-api-waha
+# Configurações do WAHA (WhatsApp HTTP API)
 WAHA_SWAGGER_USERNAME=admin
-WAHA_SWAGGER_PASSWORD=SuaSenhaWaha123
+WAHA_SWAGGER_PASSWORD=your_waha_swagger_password_here
 
-# Senha do Redis
-REDIS_PASSWORD=SuaSenhaRedis123
+# Configurações do PostgreSQL para o Evolution API
+POSTGRES_USER=your_postgres_user_here
+POSTGRES_PASSWORD=your_postgres_password_here
+POSTGRES_DB=your_postgres_database_here
+
+# Configurações do Evolution API
+EVOLUTION_API_KEY=your_evolution_api_key_here
+
+# Configurações do Redis
+REDIS_PASSWORD=your_redis_password_here
 ```
 
 ### 4. Configurar o Caddyfile
 
-Edite o arquivo `Caddyfile` e substitua `n8n.subdomínio.com` pelo seu domínio real:
+Edite o arquivo `Caddyfile` e substitua `nomeservico.services.subdomínio.com` pelo seu domínio real:
 
 ```plaintext
-seu-dominio.com {
-    handle_path /grafana* {
-        reverse_proxy grafana:3000
+nomeservico.services.subdomínio.com {
+
+    reverse_proxy nome-servico:porta
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer-when-downgrade"
+        X-XSS-Protection "1; mode=block"
     }
-    
-    handle_path /whatsapp* {
-        reverse_proxy waha:3000 {
-            header_up X-Forwarded-Prefix /whatsapp
-        }
-    }
-    
-    handle_path /redis* {
-        reverse_proxy redis-stack:8001
-    }
+
+    encode gzip zstd
+
 }
 ```
 
@@ -207,22 +225,9 @@ Serviços_n8n/
 ├── init.sh                 # Script de inicialização
 ├── restart.sh              # Script de reinicialização
 ├── README.MD               # Este arquivo
-└── data/                   # Diretórios de dados (criados automaticamente)
-    ├── grafana/
-    ├── waha/
-    └── redis/
 ```
 
 ## ⚙️ Configurações
-
-### Recursos Computacionais
-
-Cada serviço está configurado com limites de recursos otimizados:
-
-- **Caddy**: 128MB RAM, sem limite de CPU
-- **Grafana**: 512MB RAM (limite), 256MB (reservado)
-- **WAHA**: 512MB RAM (limite), 256MB (reservado)
-- **Redis**: 1GB RAM (limite), 512MB (reservado)
 
 ### Configurações do Redis
 
@@ -278,14 +283,20 @@ Script para reinicialização rápida que:
 
 ### Grafana
 
-- **URL**: `https://seu-dominio.com/grafana`
+- **URL**: `grafana.services.subdomínio.com`
 - **Login**: Definido nas variáveis de ambiente
 - **Plugins Incluídos**: Clock panel, Redis datasource
 - **Dashboards**: Disponíveis para criação personalizada
 
+### Prometheus
+
+- **URL**: `prometheus.services.subdomínio.com`
+- **Login**: Definido nas variáveis de ambiente
+- **Metricas**: Defina os caminhos que ele pegará as métricas em `./prometheus/prometheus.yml`
+
 ### Redis Insight
 
-- **URL**: `https://seu-dominio.com/redis`
+- **URL**: `redis.services.subdomínio.com`
 - **Funcionalidades**:
   - Visualização de dados em tempo real
   - Monitoramento de performance
@@ -301,7 +312,11 @@ docker compose logs -f
 # Ver logs específicos
 docker compose logs -f caddy
 docker compose logs -f grafana
+docker compose logs -f prometheus
 docker compose logs -f waha
+docker compose logs -f redis-evo
+docker compose logs -f postgres-evo
+docker compose logs -f evolution-api
 docker compose logs -f redis-stack
 
 # Ver logs com timestamp
@@ -407,11 +422,7 @@ docker compose exec caddy nslookup seu-dominio.com
 
 Após a inicialização completa, os serviços estarão disponíveis em:
 
-- **🏠 Página Principal**: `https://seu-dominio.com`
-- **📊 Grafana**: `https://seu-dominio.com/grafana`
-- **📱 WAHA (WhatsApp API)**: `https://seu-dominio.com/whatsapp`
-- **🗄️ Redis Insight**: `https://seu-dominio.com/redis`
-- **📚 Swagger WAHA**: `https://seu-dominio.com/whatsapp/swagger`
+`https://nome-servico.service.seudominio.com`
 
 ## 🔐 Segurança
 
@@ -435,6 +446,8 @@ Após a inicialização completa, os serviços estarão disponíveis em:
 
 - [Documentação do Caddy](https://caddyserver.com/docs/)
 - [Documentação do Grafana](https://grafana.com/docs/)
+- [Documentação do Prometheus](https://prometheus.io/docs/introduction/overview/)
+- [Documentação do Evolution API](https://doc.evolution-api.com/v2/pt/get-started/introduction)
 - [Documentação do WAHA](https://waha.devlike.pro/)
 - [Documentação do Redis Stack](https://redis.io/docs/stack/)
 - [Docker Compose Reference](https://docs.docker.com/compose/compose-file/)

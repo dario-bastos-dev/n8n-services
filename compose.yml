@@ -49,39 +49,129 @@ services:
     mem_limit: 512m
     mem_reservation: 256m
 
-  waha:
-    image: devlikeapro/waha:latest
-    container_name: waha
+  postgres-evo:
+    image: postgres:17-alpine
+    container_name: evo-postgres
+    restart: unless-stopped
     ports:
-      - "3000:3000"
-    dns:
-      - 1.1.1.1
-      - 8.8.8.8
-    logging:
-      driver: 'json-file'
-      options:
-        max-size: '100m'
-        max-file: '10'
+      - "5432:5432"
     environment:
-      - WHATSAPP_API_PORT=3000
-      - WHATSAPP_DEFAULT_ENGINE=GOWS
-      - WHATSAPP_DASHBOARD_ENABLED=true
-      - WAHA_DASHBOARD_USERNAME=${WAHA_USERNAME}
-      - WAHA_DASHBOARD_PASSWORD=${WAHA_PASSWORD}
-      - WHATSAPP_SWAGGER_ENABLED=true
-      - WHATSAPP_SWAGGER_USERNAME=${WAHA_USERNAME}
-      - WHATSAPP_SWAGGER_PASSWORD=${WAHA_PASSWORD}
-      - WAHA_PRINT_QR=False
-      - WHATSAPP_HOOK_URL=https://waha.${URL_SUBDOMAIN}/whats/webhook
-      - WHATSAPP_HOOK_EVENTS=session.status,message,message.reaction
-      - TZ=America/Sao_Paulo
-    networks:
-      - n8n-services
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
     volumes:
-      - ./data/waha/sessions:/app/.sessions
-      - ./data/waha/media:/app/.media
-    mem_limit: 512m
-    mem_reservation: 256m
+      - postgres_data_evo:/var/lib/postgresql/data
+    networks:
+      - evo-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 2g
+    mem_reservation: 1024m
+
+  redis-evo:
+    image: redis:8-alpine
+    container_name: evo-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data_evo:/data
+    networks:
+      - evo-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  evolution-api:
+    container_name: evolution_api
+    image: atendai/evolution-api:v2.1.1
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY}
+      - SERVER_TYPE=https
+      - SERVER_PORT=8080
+      - SERVER_URL=https://evolution.${URL_SUBDOMAIN}
+      - LOG_LEVEL=ERROR,WARN,DEBUG,INFO,LOG,VERBOSE,DARK,WEBHOOKS
+      # Postgres
+      - DATABASE_ENABLED=true
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://evo:${POSTGRES_PASSWORD}@postgres-evo:5432/${POSTGRES_DB}
+      - DATABASE_CONNECTION_CLIENT_NAME=evolution_exchange
+      - DATABASE_SAVE_DATA_INSTANCE=true
+      - DATABASE_SAVE_DATA_NEW_MESSAGE=true
+      - DATABASE_SAVE_MESSAGE_UPDATE=true
+      - DATABASE_SAVE_DATA_CONTACTS=true
+      - DATABASE_SAVE_DATA_CHATS=true
+      - DATABASE_SAVE_DATA_LABELS=true
+      - DATABASE_SAVE_DATA_HISTORIC=true
+      # Redis
+      - CACHE_REDIS_ENABLED=true
+      - CACHE_REDIS_URI=redis://redis-evo:6379/0
+      - CACHE_REDIS_PREFIX_KEY=evolution
+      - CACHE_REDIS_SAVE_INSTANCES=false
+      - CACHE_REDIS_SAVE_MESSAGES=false
+      # Options
+      - QRCODE_LIMIT=1902
+      - LANGUAGE=pt-BR
+      - DEL_INSTANCE=false
+      # Session
+      - CONFIG_SESSION_PHONE_VERSION=2.3000.1023204200
+      - CONFIG_SESSION_PHONE_CLIENT=Evolution_API
+      - CONFIG_SESSION_PHONE_NAME=Chrome
+    volumes:
+      - evolution_instances:/evolution/instances
+      - evolution_store:/evolution/store
+    networks:
+      - evo-network
+      - n8n-services
+    depends_on:
+      - postgres-evo
+      - redis-evo
+    mem_limit: 1g
+    mem_reservation: 512m
+
+  
+  # waha:
+  #   image: devlikeapro/waha:latest
+  #   container_name: waha
+  #   ports:
+  #     - "3000:3000"
+  #   dns:
+  #     - 1.1.1.1
+  #     - 8.8.8.8
+  #   logging:
+  #     driver: 'json-file'
+  #     options:
+  #       max-size: '100m'
+  #       max-file: '10'
+  #   environment:
+  #     - WHATSAPP_API_PORT=3000
+  #     - WHATSAPP_DEFAULT_ENGINE=GOWS
+  #     - WHATSAPP_DASHBOARD_ENABLED=true
+  #     - WAHA_DASHBOARD_USERNAME=${WAHA_USERNAME}
+  #     - WAHA_DASHBOARD_PASSWORD=${WAHA_PASSWORD}
+  #     - WHATSAPP_SWAGGER_ENABLED=true
+  #     - WHATSAPP_SWAGGER_USERNAME=${WAHA_USERNAME}
+  #     - WHATSAPP_SWAGGER_PASSWORD=${WAHA_PASSWORD}
+  #     - WAHA_PRINT_QR=False
+  #     - WHATSAPP_HOOK_URL=https://waha.${URL_SUBDOMAIN}/whats/webhook
+  #     - WHATSAPP_HOOK_EVENTS=session.status,message,message.reaction
+  #     - TZ=America/Sao_Paulo
+  #   networks:
+  #     - n8n-services
+  #   volumes:
+  #     - ./data/waha/sessions:/app/.sessions
+  #     - ./data/waha/media:/app/.media
+  #   mem_limit: 512m
+  #   mem_reservation: 256m
 
   redis:
     image: redis/redis-stack:latest
@@ -89,13 +179,11 @@ services:
     ports:
       - "6379:6379"
       - "8001:8001"
-    environment:
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
     networks:
       - n8n-services
     volumes:
       - ./data/redis:/data
-      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./redis.conf:/redis-stack.conf:ro
     mem_limit: 1g
     mem_reservation: 512m
 
@@ -104,7 +192,13 @@ volumes:
   caddy_config:
   grafana_data:
   prometheus_data:
+  postgres_data_evo:
+  redis_data_evo:
+  evolution_instances:
+  evolution_store:
 
 networks:
   n8n-services:
+    driver: bridge
+  evo-network:
     driver: bridge

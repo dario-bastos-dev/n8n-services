@@ -7,13 +7,6 @@ echo "==================================="
 echo "n8n Services Setup"
 echo "==================================="
 
-# Create necessary directories
-echo "Creating data directories..."
-mkdir -p ./data/grafana
-mkdir -p ./data/waha/sessions
-mkdir -p ./data/waha/media
-mkdir -p ./data/redis
-
 # Start services
 echo "Starting services..."
 sudo docker compose up -d
